@@ -23,6 +23,10 @@ class FishDetector:
         small = cv2.resize(frame, (640, 360))
         frame_area = small.shape[0] * small.shape[1]  # 640*360 = 230400
 
+        # Black out static overlay regions (e.g. burned-in timestamp) before MOG2 sees them
+        for (x1, y1, x2, y2) in config.MASK_REGIONS:
+            small[y1:y2, x1:x2] = 0
+
         # Strong blur kills sediment particles and water shimmer before MOG2 sees them
         blurred = cv2.GaussianBlur(small, (config.BLUR_KERNEL, config.BLUR_KERNEL), 0)
         mask = self._subtractor.apply(blurred)
@@ -45,6 +49,9 @@ class FishDetector:
 
             if max(w, h) < config.MIN_FISH_LENGTH:
                 continue  # bounding box too compact — not a fish
+
+            if max(w, h) / max(min(w, h), 1) < config.MIN_ELONGATION:
+                continue  # too round/square — dirt particle, not a fish
 
             if (w * h) > config.MAX_FRAME_COVERAGE * frame_area:
                 continue  # covers too much of the frame — overall light/shimmer change
