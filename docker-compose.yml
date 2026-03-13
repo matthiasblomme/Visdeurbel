@@ -1,9 +1,18 @@
 services:
+  llm:
+    build:
+      context: .
+      dockerfile: Dockerfile.llm
+    restart: unless-stopped
+
   visdeurbel:
     build: .
     restart: unless-stopped
+    depends_on:
+      - llm
     environment:
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - LLM_URL=http://llm:8080
     volumes:
       - ./snapshots:/app/snapshots

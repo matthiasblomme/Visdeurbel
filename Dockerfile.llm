@@ -1,0 +1,19 @@
+FROM ghcr.io/ggerganov/llama.cpp:server
+
+RUN apt-get update && apt-get install -y --no-install-recommends wget ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+# Granite Vision 3.2-2b Q4_K_M (~1.55 GB) + mmproj (~893 MB) = ~2.45 GB total
+RUN mkdir -p /models && \
+    wget -q --show-progress \
+        -O /models/granite-vision.gguf \
+        https://huggingface.co/bartowski/ibm-granite_granite-vision-3.2-2b-GGUF/resolve/main/ibm-granite_granite-vision-3.2-2b-Q4_K_M.gguf && \
+    wget -q --show-progress \
+        -O /models/mmproj.gguf \
+        https://huggingface.co/ibm-research/granite-vision-3.2-2b-GGUF/resolve/main/mmproj-model-f16.gguf
+
+EXPOSE 8080
+CMD ["-m", "/models/granite-vision.gguf", \
+     "--mmproj", "/models/mmproj.gguf", \
+     "--host", "0.0.0.0", "--port", "8080", \
+     "-c", "2048", "--log-disable"]

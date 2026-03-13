@@ -6,6 +6,7 @@ import cv2
 import config
 from detector import FishDetector
 from notifier import TelegramNotifier
+from verifier import FishVerifier
 
 
 def save_snapshot(frame) -> str:
@@ -25,6 +26,7 @@ def open_stream():
 def main():
     detector = FishDetector()
     notifier = TelegramNotifier()
+    verifier = FishVerifier()
 
     print(f"[Visdeurbel] Starting — stream: {config.HLS_URL}")
     notifier.send_text("Visdeurbel fish detector started.")
@@ -67,13 +69,16 @@ def main():
                 if cooldown_remaining <= 0:
                     path = save_snapshot(annotated)
                     ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-                    caption = f"Fish spotted at visdeurbel! ({ts})"
-                    ok = notifier.send(path, caption)
-                    if ok:
-                        print(f"[{ts}] Fish detected — notification sent. Snapshot: {path}")
-                        last_notification = now
+                    if config.LLM_VERIFY and not verifier.verify(path):
+                        print(f"[{ts}] OpenCV hit — LLM rejected. Skipping notification.")
                     else:
-                        print(f"[{ts}] Fish detected — notification FAILED.")
+                        caption = f"Fish spotted at visdeurbel! ({ts})"
+                        ok = notifier.send(path, caption)
+                        if ok:
+                            print(f"[{ts}] Fish detected — notification sent. Snapshot: {path}")
+                            last_notification = now
+                        else:
+                            print(f"[{ts}] Fish detected — notification FAILED.")
                 else:
                     print(
                         f"[{datetime.datetime.now().strftime('%H:%M:%S')}] Fish detected "

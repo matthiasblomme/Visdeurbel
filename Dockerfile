@@ -11,7 +11,7 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY config.py detector.py notifier.py main.py ./
+COPY config.py detector.py notifier.py verifier.py main.py ./
 
 RUN mkdir -p snapshots
 
