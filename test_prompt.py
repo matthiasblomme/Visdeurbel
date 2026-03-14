@@ -130,6 +130,32 @@ PROMPTS = {
         "If NO: the shape is clearly non-biological (haze, shadow, sediment, artifacts).\n\n"
         "Reply with exactly one word: YES or NO"
     ),
+    "v8_plausible_form": (
+        "You are reviewing a frame from a low-visibility underwater monitoring camera to decide whether a fish is visible.\n\n"
+        "Context:\n"
+        "- The water is murky, noisy, low-contrast, and may contain haze, sediment, blur, shadows, and reflections.\n"
+        "- Fish may appear from the side, head-on, tail-on, partially cropped, very blurry, or very close to the lens.\n"
+        "- Ignore any green boxes, timestamps, labels, or overlays.\n\n"
+        "Answer YES only if there is a plausible fish form present.\n"
+        "A plausible fish form means one or more of these:\n"
+        "- an elongated or tapered body\n"
+        "- a coherent curved body mass\n"
+        "- a head/body/tail relationship\n"
+        "- a fin, tail, or fish-like silhouette\n"
+        "- a partial but still believable fish-shaped body\n\n"
+        "Answer NO if the image shows only:\n"
+        "- uniform murk or haze\n"
+        "- sediment clouds or floating particles\n"
+        "- vague shadow patches\n"
+        "- reflections or light artifacts\n"
+        "- shapeless dark blobs without a coherent fish form\n\n"
+        "Important rule:\n"
+        "Do NOT require a perfect, sharp fish.\n"
+        "Do NOT answer YES for a vague blob alone.\n"
+        "Answer YES when there is a believable fish-like structure, even if partial or blurry.\n"
+        "Answer NO when the shape is only ambiguous murk or debris.\n\n"
+        "Reply with exactly one word: YES or NO"
+    ),
 }
 
 

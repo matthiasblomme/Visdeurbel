@@ -8,7 +8,7 @@
 | False-positive images (`snapshots/false/`) | 20 |
 | Total | 43 |
 
-> **Note on dataset quality:** During analysis, several images in the `false/` folder were found to actually contain fish — they had been labeled as false positives based on early intuition rather than careful inspection. This skewed all accuracy and specificity metrics downward. The "low accuracy" scores below largely reflect this labeling noise, not pure model failure. A relabeled dataset is pending.
+> **Note on results:** The dataset is correctly labeled — `false/` images contain no fish. The low specificity scores reflect the models genuinely struggling to reject ambiguous underwater shapes, not labeling noise.
 
 ---
 
@@ -22,8 +22,9 @@
 | v3 shape hint | 40% | 45% | 61% | 51% | 53% | 78% |
 | v4 precision mode | 35% | 33% | 22% | 51% | 54% | 57% |
 | v5 strict classifier | 47% | — | 0% | 49% | 67% | 9% |
-| v6 balanced | **53%** | 53% | **100%** | 40% | 43% | 39% |
+| v6 balanced | 53% | 53% | 100% | 40% | 43% | 39% |
 | v7 green box | 49% | 51% | 91% | *(not tested)* | | |
+| v8 plausible form | **58%** | **58%** | 78% | *(not tested)* | | |
 
 Acc = accuracy · Prec = precision · Recall = true positive rate on fish images
 `—` = undefined (no positive predictions made)
@@ -329,10 +330,108 @@ Reply with exactly one word: YES or NO"
 
 ---
 
+## granite3.2-vision:2b — v8 — Plausible Form
+
+```
+You are reviewing a frame from a low-visibility underwater monitoring camera to decide whether a fish is visible.
+
+Context:
+- The water is murky, noisy, low-contrast, and may contain haze, sediment, blur, shadows, and reflections.
+- Fish may appear from the side, head-on, tail-on, partially cropped, very blurry, or very close to the lens.
+- Ignore any green boxes, timestamps, labels, or overlays.
+
+Answer YES only if there is a plausible fish form present.
+A plausible fish form means one or more of these:
+- an elongated or tapered body
+- a coherent curved body mass
+- a head/body/tail relationship
+- a fin, tail, or fish-like silhouette
+- a partial but still believable fish-shaped body
+
+Answer NO if the image shows only:
+- uniform murk or haze
+- sediment clouds or floating particles
+- vague shadow patches
+- reflections or light artifacts
+- shapeless dark blobs without a coherent fish form
+
+Important rule:
+Do NOT require a perfect, sharp fish.
+Do NOT answer YES for a vague blob alone.
+Answer YES when there is a believable fish-like structure, even if partial or blurry.
+Answer NO when the shape is only ambiguous murk or debris.
+
+Reply with exactly one word: YES or NO
+```
+
+| Metric | Value |
+|---|---|
+| Accuracy | **58%** (25/43) |
+| Precision | **58%** |
+| Recall | 78% |
+| TP | 18 |
+| FN | 5 |
+| TN | 7 |
+| FP | 13 |
+
+**Per-image results:**
+
+| Image | Expected | Answer | Correct |
+|---|---|---|---|
+| fish_20260312_160316.jpg | yes | yes | OK |
+| fish_20260312_160601.jpg | yes | yes | OK |
+| fish_20260312_160603.jpg | yes | no | !! |
+| fish_20260312_160604.jpg | yes | no | !! |
+| fish_20260312_160657.jpg | yes | yes | OK |
+| fish_20260312_160658.jpg | yes | yes | OK |
+| fish_20260312_160732.jpg | yes | yes | OK |
+| fish_20260312_161231.jpg | yes | yes | OK |
+| fish_20260312_161232.jpg | yes | no | !! |
+| fish_20260312_161238.jpg | yes | no | !! |
+| fish_20260312_161455.jpg | yes | yes | OK |
+| fish_20260312_161500.jpg | yes | yes | OK |
+| fish_20260312_161501.jpg | yes | yes | OK |
+| fish_20260312_161825.jpg | yes | yes | OK |
+| fish_20260312_161826.jpg | yes | yes | OK |
+| fish_20260312_161827.jpg | yes | yes | OK |
+| fish_20260312_161828.jpg | yes | yes | OK |
+| fish_20260312_161834.jpg | yes | yes | OK |
+| fish_20260312_162213.jpg | yes | no | !! |
+| fish_20260312_162514.jpg | yes | yes | OK |
+| fish_20260312_163154.jpg | yes | yes | OK |
+| fish_20260312_163155.jpg | yes | yes | OK |
+| fish_20260312_163156.jpg | yes | yes | OK |
+| fish_20260312_092502.jpg | no | no | OK |
+| fish_20260312_092506.jpg | no | yes | !! |
+| fish_20260312_092711.jpg | no | no | OK |
+| fish_20260312_093002.jpg | no | yes | !! |
+| fish_20260312_093016.jpg | no | yes | !! |
+| fish_20260312_093118.jpg | no | yes | !! |
+| fish_20260312_093430.jpg | no | yes | !! |
+| fish_20260312_093518.jpg | no | yes | !! |
+| fish_20260312_093802.jpg | no | yes | !! |
+| fish_20260312_094036.jpg | no | no | OK |
+| fish_20260312_094038.jpg | no | no | OK |
+| fish_20260312_094105.jpg | no | no | OK |
+| fish_20260312_110334.jpg | no | no | OK |
+| fish_20260312_132339.jpg | no | yes | !! |
+| fish_20260312_133813.jpg | no | yes | !! |
+| fish_20260312_134838.jpg | no | yes | !! |
+| fish_20260312_134854.jpg | no | yes | !! |
+| fish_20260312_134856.jpg | no | no | OK |
+| fish_20260312_134857.jpg | no | yes | !! |
+| fish_20260312_134917.jpg | no | yes | !! |
+
+> **Observation:** Best overall accuracy of any granite prompt (58%). First prompt to reject a meaningful number of false positives (7 TN vs 0 for v6). Traded 22pp of recall (78% vs 100%) for a real specificity gain. The "plausible fish form" framing with an explicit "vague blob = NO" instruction pushed the model toward more selective confirmations.
+
+*(Not tested on llama3.2-vision — model unavailable, requires re-pull)*
+
+---
+
 ## Key Takeaways
 
-1. **Best combination for deployment: v6 + granite3.2-vision:2b**
-   100% recall means no fish notification is ever missed. The false positive rate is high on this dataset, but the dataset itself has mislabeling noise that inflates the FP count.
+1. **Best overall accuracy: v8 + granite3.2-vision:2b (58%)**
+   v8 is the first prompt to achieve meaningful specificity on granite — 7 true negatives vs 0 for v6. It trades some recall (78% vs 100%) for a more balanced classifier. If missing a fish is acceptable, v8 is the better deployment choice. If 100% recall is required, v6 remains the safer option.
 
 2. **Granite is more conservative than llama across all prompts**
    This is desirable for a use case where false positives are the primary problem. The conservative bias acts as a natural filter.
