@@ -7,6 +7,11 @@ load_dotenv()
 
 class TelegramNotifier:
     def __init__(self):
+        """Read Telegram credentials from environment variables and build the base API URL.
+
+        TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID are injected at runtime via Docker
+        environment variables (or a local .env file during development).
+        """
         self._token = os.environ["TELEGRAM_BOT_TOKEN"]
         self._chat_id = os.environ["TELEGRAM_CHAT_ID"]
         self._base = f"https://api.telegram.org/bot{self._token}"
@@ -30,7 +35,7 @@ class TelegramNotifier:
             return False
 
     def send_text(self, text: str) -> bool:
-        """Send a plain text message."""
+        """Send a plain text message to the configured Telegram chat."""
         try:
             resp = requests.post(
                 f"{self._base}/sendMessage",

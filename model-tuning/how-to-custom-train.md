@@ -92,6 +92,20 @@ Even 100–200 labeled images per class is enough to meaningfully shift model be
 
 IBM's Granite Vision is a compact (2B parameter) vision-language model built for instruction following. It's based on the LLaVA-Next architecture: a visual encoder (processes the image into tokens) feeds into a language model backbone (generates text). We apply LoRA only to the language backbone — the vision encoder stays frozen.
 
+#### Why Granite Vision specifically?
+
+A few reasons made it the right fit for this project:
+
+**1. Edge-first design.** IBM explicitly builds the Granite model family with edge and on-device deployment in mind. The 2B size is not an accident — it's a deliberate target that enables inference on consumer hardware, embedded systems, and local servers without cloud dependency. For a camera system that runs 24/7 on a Raspberry Pi or a small home server, that matters a lot. We're already running it locally via llama.cpp in Docker; a fine-tuned version stays in the same deployment model.
+
+**2. It runs on commodity hardware.** The model supports quantization out of the box (llama.cpp, Ollama, LM Studio). The Q4_K_M quantized version is ~1.55 GB and runs comfortably on a machine without a dedicated GPU. That's the same machine the stream monitoring runs on.
+
+**3. It punches above its weight on vision tasks.** Despite being 2B parameters, Granite Vision outperforms several larger models in its class on document and visual QA benchmarks (DocVQA: 0.89, ChartQA: 0.87, TextVQA: 0.78). For a binary yes/no task on consistent underwater footage, a model this capable is more than sufficient.
+
+**4. Apache 2.0 licensed.** No usage restrictions, no API costs, no data leaving your network. The labeled footage from a private stream stays private.
+
+**5. IBM's roadmap includes edge deployment tooling.** IBM is actively building out the Granite ecosystem for enterprise edge use cases — meaning future hardware acceleration, optimized runtimes, and integration with tools like [InstructLab](https://github.com/instructlab/instructlab) for further fine-tuning will all target this model family.
+
 ### Task framing
 
 We format each training sample as a chat conversation:

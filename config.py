@@ -1,3 +1,6 @@
+# All tunable settings for the Visdeurbel fish detector.
+# Change values here and rebuild the container — no code changes needed.
+
 HLS_URL = "https://visdeurbel.videostreams.nl/hls/visdeurbel/index.m3u8"
 
 FRAME_INTERVAL_SEC = 2    # seconds between processed frames

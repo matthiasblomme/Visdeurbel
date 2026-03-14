@@ -1,9 +1,24 @@
+# --------------------------------------------------------------------------
+# Visdeurbel LLM service — Granite Vision 3.2-2b via llama-server
+#
+# Uses the official llama.cpp server image (ghcr.io/ggerganov/llama.cpp:server)
+# and bakes in the model files at build time so the container is self-contained.
+#
+# Model: ibm-granite/granite-vision-3.2-2b (Q4_K_M quantisation)
+#   Architecture: SigLIP vision encoder + Granite 3.1-2b-instruct text model
+#   Total size:   ~1.55 GB (text model) + ~893 MB (mmproj) = ~2.45 GB
+#   API:          OpenAI-compatible /v1/chat/completions on port 8080
+# --------------------------------------------------------------------------
 FROM ghcr.io/ggerganov/llama.cpp:server
 
+# wget is needed to download model files from HuggingFace during the build
 RUN apt-get update && apt-get install -y --no-install-recommends wget ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Granite Vision 3.2-2b Q4_K_M (~1.55 GB) + mmproj (~893 MB) = ~2.45 GB total
+# Download both GGUF files into /models:
+#   granite-vision.gguf — the quantised language model weights
+#   mmproj.gguf         — the multimodal projector that maps image embeddings
+#                         (from the SigLIP vision encoder) into the LLM's token space
 RUN mkdir -p /models && \
     wget -q --show-progress \
         -O /models/granite-vision.gguf \
@@ -13,6 +28,14 @@ RUN mkdir -p /models && \
         https://huggingface.co/ibm-research/granite-vision-3.2-2b-GGUF/resolve/main/mmproj-model-f16.gguf
 
 EXPOSE 8080
+
+# Start llama-server with vision support:
+#   -m           path to the main language model GGUF
+#   --mmproj     path to the multimodal projector GGUF (enables image input)
+#   --host       bind to all interfaces so the detector container can reach it
+#   --port       expose on 8080 (matched by docker-compose LLM_URL)
+#   -c 2048      context window — enough for one image + short prompt
+#   --log-disable suppress verbose llama.cpp startup logs
 CMD ["-m", "/models/granite-vision.gguf", \
      "--mmproj", "/models/mmproj.gguf", \
      "--host", "0.0.0.0", "--port", "8080", \

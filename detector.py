@@ -5,6 +5,12 @@ import config
 
 class FishDetector:
     def __init__(self):
+        """Initialise the MOG2 background subtractor and the morphological kernel.
+
+        MOG2 learns the static riverbed background over MOG2_HISTORY frames and
+        then flags anything that deviates from it as foreground. The elliptical
+        kernel is used for morphological open/dilate to clean up the foreground mask.
+        """
         self._subtractor = cv2.createBackgroundSubtractorMOG2(
             history=config.MOG2_HISTORY,
             varThreshold=config.MOG2_THRESHOLD,

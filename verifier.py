@@ -7,6 +7,11 @@ import config
 
 class FishVerifier:
     def __init__(self):
+        """Resolve the llama-server URL from the environment (falls back to config.LLM_URL).
+
+        The LLM_URL env var is set by docker-compose so the detector container can
+        reach the llm service by its Docker service name (http://llm:8080).
+        """
         self._url = os.getenv("LLM_URL", config.LLM_URL)
 
     def verify(self, snapshot_path: str) -> bool:

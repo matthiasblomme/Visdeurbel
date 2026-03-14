@@ -1,18 +1,25 @@
 services:
+
+  # llm — Granite Vision 3.2-2b served via llama-server (llama.cpp)
+  # Exposes an OpenAI-compatible /v1/chat/completions endpoint on port 8080.
+  # The visdeurbel service calls this to confirm "fish or not" before notifying.
   llm:
     build:
       context: .
       dockerfile: Dockerfile.llm
     restart: unless-stopped
 
+  # visdeurbel — the fish detector (OpenCV motion detection + Telegram notifications)
+  # Credentials are read from a local .env file (never committed to source control).
+  # Snapshots are written to ./snapshots on the host for post-run review.
   visdeurbel:
     build: .
     restart: unless-stopped
     depends_on:
-      - llm
+      - llm           # wait for llama-server to start before opening the stream
     environment:
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
-      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
-      - LLM_URL=http://llm:8080
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}   # bot token from @BotFather
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}        # personal or group chat ID
+      - LLM_URL=http://llm:8080                     # llama-server reachable via Docker service name
     volumes:
-      - ./snapshots:/app/snapshots
+      - ./snapshots:/app/snapshots    # persist annotated snapshots outside the container
