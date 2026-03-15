@@ -424,7 +424,7 @@ Reply with exactly one word: YES or NO
 
 > **Observation:** Best overall accuracy of any granite prompt (58%). First prompt to reject a meaningful number of false positives (7 TN vs 0 for v6). Traded 22pp of recall (78% vs 100%) for a real specificity gain. The "plausible fish form" framing with an explicit "vague blob = NO" instruction pushed the model toward more selective confirmations.
 
-*(Not tested on llama3.2-vision — model unavailable, requires re-pull)*
+*(Not tested on llama3.2-vision — vision inference times out on this hardware without a GPU; each image exceeds 600s)*
 
 ---
 

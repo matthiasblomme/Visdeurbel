@@ -182,7 +182,7 @@ def ask(prompt: str, b64: str) -> str:
                 "stream": False,
                 "options": {"temperature": 0.0, "num_predict": 3},
             },
-            timeout=300,
+            timeout=600,
         )
         resp.raise_for_status()
         return resp.json()["message"]["content"].strip().lower()
