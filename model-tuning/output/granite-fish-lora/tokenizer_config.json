@@ -1,0 +1,21 @@
+{
+  "add_prefix_space": false,
+  "backend": "tokenizers",
+  "bos_token": "<|end_of_text|>",
+  "clean_up_tokenization_spaces": true,
+  "eos_token": "<|end_of_text|>",
+  "errors": "replace",
+  "extra_special_tokens": [
+    "<|start_of_role|>",
+    "<|end_of_role|>",
+    "<|tool_call|>"
+  ],
+  "is_local": false,
+  "model_max_length": 131072,
+  "pad_token": "<|end_of_text|>",
+  "padding_side": "right",
+  "processor_class": "LlavaNextProcessor",
+  "tokenizer_class": "TokenizersBackend",
+  "unk_token": "<|end_of_text|>",
+  "vocab_size": 49152
+}

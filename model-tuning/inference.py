@@ -20,9 +20,12 @@ import json
 import sys
 from pathlib import Path
 
+from dotenv import load_dotenv
+load_dotenv()
+
 import torch
 from PIL import Image
-from transformers import AutoProcessor, BitsAndBytesConfig, LlavaNextForConditionalGeneration
+from transformers import AutoProcessor, LlavaNextForConditionalGeneration
 from peft import PeftModel
 
 # ── Config ─────────────────────────────────────────────────────────────────────
@@ -33,26 +36,41 @@ MAX_NEW_TOKENS = 5   # "yes" or "no" is 1 token; a little headroom
 # ───────────────────────────────────────────────────────────────────────────────
 
 PROMPT = (
-    "This is a frame from an underwater riverbed camera. "
-    "Is there a fish visible in this image? Answer only yes or no."
+    "You are reviewing a frame from a low-visibility underwater monitoring camera to decide whether a fish is visible.\n\n"
+    "Context:\n"
+    "- The water is murky, noisy, low-contrast, and may contain haze, sediment, blur, shadows, and reflections.\n"
+    "- Fish may appear from the side, head-on, tail-on, partially cropped, very blurry, or very close to the lens.\n"
+    "- Ignore any green boxes, timestamps, labels, or overlays.\n\n"
+    "Answer YES only if there is a plausible fish form present.\n"
+    "A plausible fish form means one or more of these:\n"
+    "- an elongated or tapered body\n"
+    "- a coherent curved body mass\n"
+    "- a head/body/tail relationship\n"
+    "- a fin, tail, or fish-like silhouette\n"
+    "- a partial but still believable fish-shaped body\n\n"
+    "Answer NO if the image shows only:\n"
+    "- uniform murk or haze\n"
+    "- sediment clouds or floating particles\n"
+    "- vague shadow patches\n"
+    "- reflections or light artifacts\n"
+    "- shapeless dark blobs without a coherent fish form\n\n"
+    "Important rule:\n"
+    "Do NOT require a perfect, sharp fish.\n"
+    "Do NOT answer YES for a vague blob alone.\n"
+    "Answer YES when there is a believable fish-like structure, even if partial or blurry.\n"
+    "Answer NO when the shape is only ambiguous murk or debris.\n\n"
+    "Reply with exactly one word: YES or NO"
 )
 
 
 def load_model(use_adapter: bool):
-    bnb_config = BitsAndBytesConfig(
-        load_in_4bit=True,
-        bnb_4bit_quant_type="nf4",
-        bnb_4bit_use_double_quant=True,
-        bnb_4bit_compute_dtype=torch.bfloat16,
-    )
     processor = AutoProcessor.from_pretrained(
         str(ADAPTER_DIR) if use_adapter else MODEL_ID
     )
     base = LlavaNextForConditionalGeneration.from_pretrained(
         MODEL_ID,
-        quantization_config=bnb_config,
-        device_map="auto",
-        torch_dtype=torch.bfloat16,
+        device_map={"": 0},
+        torch_dtype=torch.float16,
     )
     if use_adapter:
         if not ADAPTER_DIR.exists():
@@ -134,7 +152,7 @@ def evaluate(model, processor):
     recall    = tp / (tp + fn) if (tp + fn) else 0
     f1        = 2 * precision * recall / (precision + recall) if (precision + recall) else 0
 
-    print(f"\n{'─'*50}")
+    print(f"\n{'-'*50}")
     print(f"  Total   : {total}")
     print(f"  Accuracy : {accuracy:.1%}")
     print(f"  Precision: {precision:.1%}  (of predicted fish, how many were real fish)")

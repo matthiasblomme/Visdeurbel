@@ -6,3 +6,5 @@ __pycache__/
 .claude/
 *.log
 output.log
+model-tuning/dataset/train.jsonl
+model-tuning/dataset/val.jsonl

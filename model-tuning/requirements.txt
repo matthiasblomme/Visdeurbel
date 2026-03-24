@@ -6,3 +6,4 @@ accelerate>=0.34.0
 datasets>=2.20.0
 pillow>=10.0.0
 tqdm
+python-dotenv
