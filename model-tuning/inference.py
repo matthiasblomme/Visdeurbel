@@ -30,7 +30,7 @@ from peft import PeftModel
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 MODEL_ID    = "ibm-granite/granite-vision-3.2-2b"
-ADAPTER_DIR = Path("output/granite-fish-lora")
+ADAPTER_DIR = Path("output/granite-fish-lora-fast")
 VAL_FILE    = Path("dataset/val.jsonl")
 MAX_NEW_TOKENS = 5   # "yes" or "no" is 1 token; a little headroom
 # ───────────────────────────────────────────────────────────────────────────────

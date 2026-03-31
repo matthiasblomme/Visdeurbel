@@ -145,6 +145,15 @@ def main():
     if not TRAIN_FILE.exists():
         raise FileNotFoundError(f"{TRAIN_FILE} not found -- run prepare_dataset.py first.")
 
+    # ── Hard VRAM cap (prevents system RAM spill and PC lockup) ───────────────
+    # Limits PyTorch to 75% of available VRAM. If training exceeds this it
+    # throws an OOM error and exits cleanly instead of freezing your machine.
+    if torch.cuda.is_available():
+        total_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
+        torch.cuda.set_per_process_memory_fraction(0.75, 0)
+        print(f"GPU: {torch.cuda.get_device_name(0)} ({total_gb:.1f} GB)")
+        print(f"VRAM cap: 75% = {total_gb * 0.75:.1f} GB")
+
     train_records = load_jsonl(TRAIN_FILE)
     print(f"Train samples: {len(train_records)}")
 

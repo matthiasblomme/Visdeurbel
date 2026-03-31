@@ -178,3 +178,44 @@ model = LlavaNextForConditionalGeneration.from_pretrained(
 Result: ~10 seconds/step → ~38 minutes total for 3 epochs.
 
 **Lesson:** `device_map="auto"` is designed for models that *don't fit* in GPU memory. For a 2B fp16 model on a 16 GB GPU, it's counterproductive — it adds overhead from the auto-sharding logic. Use `{"": 0}` to pin everything to GPU 0 when the model fits.
+
+---
+
+## 8. `eval_strategy="epoch"` turned a 40-minute training run into 11 hours
+
+**When:** First complete training run with `train.py` using `eval_strategy="epoch"`.
+
+**Symptom:** Training completed (228 steps, ~10s/step = ~38 minutes of actual training), but the total wall-clock time was **11 hours 9 minutes**. The progress bar showed the training steps moving normally, but enormous pauses appeared between epochs.
+
+**Cause:** `eval_strategy="epoch"` runs the full validation set after every epoch. With 74 validation samples each requiring a full forward pass on an fp16 model (no quantization, ~4 GB), each eval pass took **~3 hours**. Three epochs = three eval passes = ~9 hours of eval on top of ~38 minutes of training.
+
+The slowness wasn't compute-bound — it was memory-bound. The full fp16 model leaves little VRAM headroom, and validation forward passes (no gradient checkpointing) caused repeated GPU↔RAM pressure.
+
+**Fix:** Removed eval from the training loop entirely. Created `train_fast.py` with:
+```python
+eval_strategy="no",
+save_strategy="no",
+```
+Run evaluation separately after training with `inference.py --eval`. Total training time: ~40 minutes.
+
+**Lesson:** For consumer GPU fine-tuning of vision models, separate training from evaluation. In-loop eval has the same memory footprint as training but without gradient checkpointing savings, making it disproportionately slow. Evaluate once after training is done.
+
+---
+
+## 9. RTX 5070 Ti (Blackwell) locks up the system under training load
+
+**When:** Every training attempt launched programmatically (as a background process) on a fresh Windows 11 install with an RTX 5070 Ti.
+
+**Symptom:** System becomes completely unresponsive within minutes of training start. Hard reboot required. This happened consistently with fp16 training, QLoRA attempts, and Unsloth runs.
+
+**Cause (likely):** The RTX 5070 Ti is Blackwell architecture (SM_120), released February 2025. PyTorch + bitsandbytes support for Blackwell is still immature on Windows as of early 2026. When background-launched training processes are killed, GPU memory is not reliably released — subsequent runs start with an already-pressured GPU state, causing memory spill into system RAM and OS-level lockups.
+
+One confirmed run **did complete successfully** (the 11-hour `train.py` run): it was launched directly from a user terminal on a clean boot, with no prior killed processes. This confirms the hardware can handle it — the instability is in how VRAM state accumulates across killed/relaunched processes.
+
+**Mitigations applied:**
+- Added `torch.cuda.set_per_process_memory_fraction(0.75)` to cap VRAM at 12 GB, forcing a clean OOM crash instead of silent RAM spill
+- Switched to `train_fast.py` to minimize total runtime (~40 min vs 11 hours)
+- Recommended running only on a **fresh reboot** with all other GPU apps closed
+- Recommended running from the user's own terminal (not programmatically), so Ctrl+C releases GPU memory cleanly
+
+**Lesson:** New GPU architectures on Windows need time for the software ecosystem to catch up. If you're hitting mysterious lockups with an RTX 40/50-series card, check whether your PyTorch build explicitly targets your CUDA compute capability. For Blackwell, use `--index-url https://download.pytorch.org/whl/cu128`.
