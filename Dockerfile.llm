@@ -1,42 +1,66 @@
 # --------------------------------------------------------------------------
-# Visdeurbel LLM service — Granite Vision 3.2-2b via llama-server
+# Visdeurbel LLM service — Granite Vision 3.2-2b via llama-server (llama.cpp)
 #
-# Uses the official llama.cpp server image (ghcr.io/ggerganov/llama.cpp:server)
-# and bakes in the model files at build time so the container is self-contained.
+# Uses the official CUDA-enabled llama.cpp server image so the GPU is used
+# for inference, keeping each call well under the 30s timeout.
 #
 # Model: ibm-granite/granite-vision-3.2-2b (Q4_K_M quantisation)
 #   Architecture: SigLIP vision encoder + Granite 3.1-2b-instruct text model
 #   Total size:   ~1.55 GB (text model) + ~893 MB (mmproj) = ~2.45 GB
 #   API:          OpenAI-compatible /v1/chat/completions on port 8080
+#
+# Using a fine-tuned model:
+#   Run model-tuning/export_gguf.py to merge the LoRA adapter and convert to GGUF.
+#   Place the output at models/granite-vision.gguf in the project root,
+#   then rebuild: docker compose build llm
+#   The mmproj stays unchanged — LoRA only fine-tunes the language backbone.
 # --------------------------------------------------------------------------
-FROM ghcr.io/ggerganov/llama.cpp:server
+FROM ghcr.io/ggml-org/llama.cpp:server-cuda
 
-# wget is needed to download model files from HuggingFace during the build
+# wget is needed to download model files from HuggingFace during the build.
+# It also stays in the image and is used by the docker-compose health check.
 RUN apt-get update && apt-get install -y --no-install-recommends wget ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Download both GGUF files into /models:
-#   granite-vision.gguf — the quantised language model weights
-#   mmproj.gguf         — the multimodal projector that maps image embeddings
-#                         (from the SigLIP vision encoder) into the LLM's token space
-RUN mkdir -p /models && \
-    wget -q --show-progress \
-        -O /models/granite-vision.gguf \
-        https://huggingface.co/bartowski/ibm-granite_granite-vision-3.2-2b-GGUF/resolve/main/ibm-granite_granite-vision-3.2-2b-Q4_K_M.gguf && \
-    wget -q --show-progress \
-        -O /models/mmproj.gguf \
-        https://huggingface.co/ibm-research/granite-vision-3.2-2b-GGUF/resolve/main/mmproj-model-f16.gguf
+# Model loading strategy:
+#   By default, the base model is downloaded from HuggingFace at build time.
+#   To use a locally fine-tuned model instead:
+#     1. Run model-tuning/export_gguf.py to merge the LoRA adapter and convert to GGUF.
+#     2. Place the output at models/granite-vision.gguf in the project root.
+#     3. Rebuild: docker compose build llm
+#   The file in models/ is copied into the image; if absent, the base model is downloaded.
+RUN mkdir -p /models /tmp/local-models
+
+# COPY the models/ directory (may be empty — that is fine, handled by RUN below).
+COPY models/ /tmp/local-models/
+
+# Use the locally-built GGUF if present, otherwise download the base model.
+RUN if [ -f /tmp/local-models/granite-vision.gguf ]; then \
+        echo "Using local fine-tuned model from models/granite-vision.gguf" && \
+        cp /tmp/local-models/granite-vision.gguf /models/granite-vision.gguf; \
+    else \
+        echo "Downloading base model from HuggingFace (Q4_K_M, ~1.55 GB)..." && \
+        wget -q --show-progress \
+            -O /models/granite-vision.gguf \
+            https://huggingface.co/bartowski/ibm-granite_granite-vision-3.2-2b-GGUF/resolve/main/ibm-granite_granite-vision-3.2-2b-Q4_K_M.gguf; \
+    fi && rm -rf /tmp/local-models
+
+# The mmproj (SigLIP vision encoder) is always the base — LoRA does not touch the vision tower.
+RUN wget -q --show-progress \
+    -O /models/mmproj.gguf \
+    https://huggingface.co/ibm-research/granite-vision-3.2-2b-GGUF/resolve/main/mmproj-model-f16.gguf
 
 EXPOSE 8080
 
 # Start llama-server with vision support:
-#   -m           path to the main language model GGUF
-#   --mmproj     path to the multimodal projector GGUF (enables image input)
-#   --host       bind to all interfaces so the detector container can reach it
-#   --port       expose on 8080 (matched by docker-compose LLM_URL)
-#   -c 2048      context window — enough for one image + short prompt
-#   --log-disable suppress verbose llama.cpp startup logs
+#   -m                path to the main language model GGUF
+#   --mmproj          path to the multimodal projector GGUF (enables image input)
+#   --host 0.0.0.0    bind to all interfaces so the detector container can reach it
+#   --port 8080       matched by docker-compose LLM_URL
+#   -c 4096           context window — image tokens alone are ~2048 for a 640×360 frame
+#   --n-gpu-layers 99 offload all layers to GPU (requires NVIDIA Container Toolkit on host)
 CMD ["-m", "/models/granite-vision.gguf", \
      "--mmproj", "/models/mmproj.gguf", \
      "--host", "0.0.0.0", "--port", "8080", \
-     "-c", "2048", "--log-disable"]
+     "-c", "4096", \
+     "--n-gpu-layers", "99"]

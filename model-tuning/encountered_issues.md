@@ -219,3 +219,87 @@ One confirmed run **did complete successfully** (the 11-hour `train.py` run): it
 - Recommended running from the user's own terminal (not programmatically), so Ctrl+C releases GPU memory cleanly
 
 **Lesson:** New GPU architectures on Windows need time for the software ecosystem to catch up. If you're hitting mysterious lockups with an RTX 40/50-series card, check whether your PyTorch build explicitly targets your CUDA compute capability. For Blackwell, use `--index-url https://download.pytorch.org/whl/cu128`.
+
+---
+
+## 10. `ValueError: Can not map tensor 'image_newline'` during GGUF conversion
+
+**When:** Running `convert_hf_to_gguf.py` against the merged model output from `export_gguf.py`.
+
+**Error:**
+```
+ValueError: Can not map tensor 'image_newline'
+```
+
+**Cause:** `model.merge_and_unload()` on a `LlavaNextForConditionalGeneration` saves the entire multimodal model, including the SigLIP vision tower, the multimodal projector, and the `image_newline` embedding tensor. The GGUF converter only understands `GraniteForCausalLM` (the language backbone), not the LLaVA-Next scaffolding around it.
+
+**Fix:** Save only the language backbone, not the full model. The backbone is nested at `model.model.language_model` (a `GraniteModel`) and the LM head is at `model.lm_head`. Assemble a clean `GraniteForCausalLM` from these two parts before saving:
+
+```python
+from transformers import GraniteForCausalLM
+
+backbone = model.model.language_model
+lm_head  = model.lm_head
+
+causal_lm = GraniteForCausalLM(backbone.config)
+causal_lm.model.load_state_dict(backbone.state_dict())
+causal_lm.lm_head.load_state_dict(lm_head.state_dict())
+causal_lm.save_pretrained("output/granite-fish-lora-merged")
+```
+
+The mmproj (vision encoder) does not need to be touched — LoRA only trained the language backbone.
+
+---
+
+## 11. `ERROR: Model GraniteModel is not supported` during GGUF conversion
+
+**When:** After first fix attempt (saving `model.model.language_model` directly).
+
+**Error:**
+```
+ERROR:hf-to-gguf:Model GraniteModel is not supported
+```
+
+**Cause:** `model.model.language_model` is a `GraniteModel` (the bare transformer stack, no LM head). The converter requires a `GraniteForCausalLM` — the full causal LM wrapper including the output projection head (`lm_head`). Saving `GraniteModel` directly produces a config with `architectures: ["GraniteModel"]` which the converter rejects.
+
+**Fix:** Same as issue 10 above — assemble `GraniteForCausalLM` explicitly from the backbone + head before saving. The `export_gguf.py` script handles this correctly.
+
+---
+
+## 12. `q4_k_m` is not a valid `--outtype` for `convert_hf_to_gguf.py`
+
+**When:** Running GGUF conversion with `--outtype q4_k_m`.
+
+**Error:**
+```
+convert_hf_to_gguf.py: error: argument --outtype: invalid choice: 'q4_k_m'
+(choose from f32, f16, bf16, q8_0, tq1_0, tq2_0, auto)
+```
+
+**Cause:** `convert_hf_to_gguf.py` only converts to a limited set of types. `q4_k_m` is a k-quant format that requires a separate `llama-quantize` post-processing step. The converter itself doesn't support it directly.
+
+**Fix:** Use `q8_0` as the output type. It is supported directly by the converter, halves the file size versus fp16, and runs comfortably in 16 GB VRAM for a 2B model. If you need smaller, convert to `q8_0` first and then run `llama-quantize` to get `q4_k_m`.
+
+---
+
+## 13. `ghcr.io/ggerganov/llama.cpp:server-cuda` not found
+
+**When:** `docker compose build` for the `llm` service.
+
+**Error:**
+```
+ERROR: ghcr.io/ggerganov/llama.cpp:server-cuda: not found
+failed to resolve source metadata for ghcr.io/ggerganov/llama.cpp:server-cuda
+```
+
+**Cause:** The llama.cpp project moved its GitHub organisation from `ggerganov` to `ggml-org`. All container images are now published under `ghcr.io/ggml-org/llama.cpp`. The old `ggerganov` registry returns `manifest unknown` for all tags.
+
+**Fix:** Update `Dockerfile.llm`:
+```dockerfile
+FROM ghcr.io/ggml-org/llama.cpp:server-cuda
+```
+
+**Also:** The `requirements-convert_hf_to_gguf.txt` file pins `torch~=2.6.0`, which conflicts with a newer PyTorch install. Instead of installing from that file, install only the packages actually needed by the converter:
+```bash
+pip install gguf transformers sentencepiece protobuf
+```

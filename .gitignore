@@ -8,3 +8,5 @@ __pycache__/
 output.log
 model-tuning/dataset/train.jsonl
 model-tuning/dataset/val.jsonl
+models/*.gguf
+model-tuning/output/

@@ -6,7 +6,7 @@ Same approach as train.py but optimized for speed:
 - No mid-training checkpoint saves (avoids memory spikes)
 - Adapter is saved only at the end
 
-Expected runtime: ~40 minutes on a 16 GB consumer GPU (vs ~11 hours with train.py).
+Expected runtime: ~50 minutes on a 16 GB consumer GPU (vs ~11 hours with train.py).
 Use inference.py --eval separately after training to measure accuracy.
 
 Usage:

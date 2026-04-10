@@ -8,6 +8,22 @@ services:
       context: .
       dockerfile: Dockerfile.llm
     restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]   # requires NVIDIA Container Toolkit on the host
+    healthcheck:
+      # llama-server exposes /health and returns {"status":"ok"} once the model is loaded.
+      # start_period gives the container up to 2 minutes to load the ~2.5 GB model before
+      # health-check failures count against retries.
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/health | grep -q ok || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 120s
 
   # visdeurbel — the fish detector (OpenCV motion detection + Telegram notifications)
   # Credentials are read from a local .env file (never committed to source control).
@@ -16,10 +32,10 @@ services:
     build: .
     restart: unless-stopped
     depends_on:
-      - llm           # wait for llama-server to start before opening the stream
+      llm:
+        condition: service_healthy  # wait until llama-server has finished loading the model
+    env_file: .env                  # loads TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID
     environment:
-      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}   # bot token from @BotFather
-      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}        # personal or group chat ID
-      - LLM_URL=http://llm:8080                     # llama-server reachable via Docker service name
+      - LLM_URL=http://llm:8080     # llama-server reachable via Docker service name
     volumes:
-      - ./snapshots:/app/snapshots    # persist annotated snapshots outside the container
+      - ./snapshots:/app/snapshots  # persist annotated snapshots outside the container
